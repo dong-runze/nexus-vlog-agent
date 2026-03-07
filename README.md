@@ -1,5 +1,7 @@
 ## Nexus: The Multi-modal Vlog Memory Agent 
 
+<img width="2816" height="1536" alt="Gemini_Generated_Image_3b9u6q3b9u6q3b9u" src="https://github.com/user-attachments/assets/a7a5ae37-67d8-4883-9cc5-69bfe31107f3" />
+
 # 🚀Nexus is an advanced AI agent designed to transform raw, unstructured Vlog media into a searchable, interactive, and intelligent "Second Brain." By leveraging the power of Gemini 2.5 Flash and high-dimensional vector embeddings, Nexus allows users to bridge the gap between recording life and recalling it.
 
 # 🧠 Design Philosophy
