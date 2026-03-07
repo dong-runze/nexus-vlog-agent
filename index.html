@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Vlog Memory Agent</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --terminal-bg: #010409;
+            --border-color: #30363d;
+            --text-primary: #e6edf3;
+            --accent-green: #238636;
+            --accent-yellow: #d29922;
+            --text-dim: #8b949e;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Fira Code', monospace;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* 侧边栏与滚动条修复 */
+        .chat-section,
+        .brain-terminal {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-section {
+            flex: 4;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .brain-terminal {
+            flex: 6;
+            background: var(--terminal-bg);
+        }
+
+        #chat-messages,
+        #terminal-logs {
+            flex: 1;
+            overflow-y: scroll !important;
+            /* 强制显示滚动条 */
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-green) transparent;
+        }
+
+        /* 赛博滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(35, 134, 54, 0.4);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        /* 模型选择器样式 */
+        .model-selector {
+            background: #161b22;
+            color: var(--accent-green);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 10px;
+            padding: 2px 5px;
+            outline: none;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(35, 134, 54, 0.2);
+        }
+
+        .chat-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 85%;
+            line-height: 1.5;
+            font-size: 0.95em;
+            word-wrap: break-word;
+        }
+
+        .chat-bubble.ai {
+            background: #21262d;
+            border: 1px solid var(--accent-green);
+            align-self: flex-start;
+        }
+
+        .chat-bubble.user {
+            background: var(--accent-green);
+            color: white;
+            align-self: flex-end;
+        }
+
+        .chat-input-area {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: #161b22;
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .terminal-header,
+        .chat-header {
+            background: #161b22;
+            padding: 10px 20px;
+            font-size: 0.8em;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .ts {
+            color: var(--text-dim);
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <section class="chat-section">
+            <div class="chat-header"><span>NEXUS_AGENT_UI</span> <button onclick="clearHistory()"
+                    style="font-size:10px; background:transparent; color:red; border:none; cursor:pointer;">[DELETE_ALL]</button>
+            </div>
+            <div id="chat-messages"></div>
+            <div class="chat-input-area">
+                <label style="cursor:pointer; padding:10px;">📎<input type="file" id="file-upload" style="display:none;"
+                        onchange="handleFileUpload(event)"></label>
+                <input type="text" id="user-input" placeholder="Ask about your memories..."
+                    onkeypress="if(event.key==='Enter')sendText()">
+                <button class="btn-primary" onclick="sendText()">SEND</button>
+            </div>
+        </section>
+        <section class="brain-terminal">
+            <div class="terminal-header">
+                <div>
+                    MODEL:
+                    <select id="model-select" class="model-selector">
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        <option value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    </select>
+                </div>
+                <span id="ui-status">STATUS: ACTIVE</span>
+            </div>
+            <div id="terminal-logs"></div>
+        </section>
+    </div>
+
+    <script>
+        let socket;
+        const chatBox = document.getElementById('chat-messages');
+        const logBox = document.getElementById('terminal-logs');
+
+        // 🚨 历史记录持久化
+        function saveState() {
+            localStorage.setItem('nexus_chat_v3', chatBox.innerHTML);
+            localStorage.setItem('nexus_logs_v3', logBox.innerHTML);
+        }
+        function loadState() {
+            chatBox.innerHTML = localStorage.getItem('nexus_chat_v3') || '<div class="chat-bubble ai">🤖: System Online. How can I assist your memory today?</div>';
+            logBox.innerHTML = localStorage.getItem('nexus_logs_v3') || '<div class="log-entry"><span class="ts">[00:00:00]</span> CORE: Neural layers initialized.</div>';
+            scrollToBottom();
+        }
+        function clearHistory() { localStorage.clear(); location.reload(); }
+        function scrollToBottom() { chatBox.scrollTop = chatBox.scrollHeight; logBox.scrollTop = logBox.scrollHeight; }
+
+        window.onload = () => {
+            loadState();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(`${protocol}//${window.location.host}/ws/agent`);
+            socket.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                if (d.type === 'message') appendChatMessage(d.content, 'ai');
+                else appendLog(d.type, d.content);
+            };
+        };
+
+        function sendText() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            const model = document.getElementById('model-select').value;
+            if (text && socket.readyState === 1) {
+                appendChatMessage(text, 'user');
+                socket.send(JSON.stringify({ command: "search", query: text, model: model }));
+                input.value = '';
+            }
+        }
+
+        async function handleFileUpload(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const model = document.getElementById('model-select').value;
+            appendChatMessage(`[Uploading]: ${file.name}`, 'user');
+            const fd = new FormData(); fd.append('file', file);
+            const res = await fetch('/upload', { method: 'POST', body: fd });
+            const d = await res.json();
+            if (res.ok) socket.send(JSON.stringify({ command: "start", filename: d.filename, model: model }));
+        }
+
+        function appendChatMessage(c, s) {
+            const div = document.createElement('div'); div.className = `chat-bubble ${s}`;
+            div.innerHTML = s === 'ai' ? `🤖: ${c}` : `👤: ${c}`;
+            chatBox.appendChild(div); scrollToBottom(); saveState();
+        }
+
+        function appendLog(t, c) {
+            const div = document.createElement('div'); div.className = 'log-entry';
+            const ts = new Date().toLocaleTimeString().split(' ')[0];
+            let icon = t === 'tool_call' ? '<span style="color:var(--accent-yellow)">[VLM]</span>' : (t === 'db_search' ? '<span style="color:var(--accent-green)">[DB]</span>' : '[SYS]');
+            div.innerHTML = `<span class="ts">[${ts}]</span> ${icon} ${c}`;
+            logBox.appendChild(div); scrollToBottom(); saveState();
+        }
+    </script>
+</body>
+
+</html>
