@@ -19,7 +19,6 @@ Visualization: Plotly.js & Scikit-learn (PCA).
 # 🚀 Installation & Usage1. PrerequisitesGoogle Cloud Project with Vertex AI API enabled.Docker installed (for deployment).Python 3.11+.2. Local SetupBash# Clone the repository
 # git clone [https://github.com/your-username/nexus-vlog-agent.git](https://github.com/dong-runze/nexus-vlog-agent.git)
 cd nexus-vlog-agent
-# my cloud deployment: https://nexus-agent-950282885470.us-central1.run.app
 
 # Install dependencies
 pip install -r requirements.txt
